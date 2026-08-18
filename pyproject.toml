@@ -1,0 +1,5 @@
+[project]
+name = "clinical-ai-assistant"
+version = "0.1.0"
+description = "Clinical AI Conversational Assistant"
+requires-python = ">=3.10"
