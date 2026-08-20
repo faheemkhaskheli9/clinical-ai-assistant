@@ -1,1 +1,2 @@
-# Fill in with the exact package versions used once implementation starts.
+pydantic==2.13.4
+pytest==9.1.1

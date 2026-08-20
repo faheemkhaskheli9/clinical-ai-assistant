@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "ConversationTurn": {
+      "additionalProperties": false,
+      "description": "A single message within a patient intake conversation.",
+      "properties": {
+        "turn_id": {
+          "description": "Unique id for this turn",
+          "format": "uuid",
+          "title": "Turn Id",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/TurnRole",
+          "description": "Who produced this turn"
+        },
+        "content": {
+          "description": "Free-text turn content",
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "timestamp": {
+          "description": "UTC timestamp the turn was recorded",
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "ConversationTurn",
+      "type": "object"
+    },
+    "TurnRole": {
+      "description": "Who produced a given conversation turn.",
+      "enum": [
+        "patient",
+        "assistant",
+        "system"
+      ],
+      "title": "TurnRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A full patient intake conversation: session metadata plus its turns.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "description": "Version of this schema the record was written with",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "description": "Unique id for this session",
+      "format": "uuid",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "patient_id": {
+      "description": "Pseudonymous patient identifier (never a real name, email, or SSN)",
+      "minLength": 1,
+      "title": "Patient Id",
+      "type": "string"
+    },
+    "turns": {
+      "description": "Ordered conversation turns, oldest first",
+      "items": {
+        "$ref": "#/$defs/ConversationTurn"
+      },
+      "title": "Turns",
+      "type": "array"
+    },
+    "created_at": {
+      "description": "UTC timestamp the session was created",
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "metadata": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Free-form session metadata, e.g. intake channel, locale",
+      "title": "Metadata",
+      "type": "object"
+    }
+  },
+  "required": [
+    "patient_id"
+  ],
+  "title": "ConversationSession",
+  "type": "object"
+}
