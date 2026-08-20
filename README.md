@@ -49,6 +49,14 @@ Patient Chat -> Structured Extraction -> Clinical Reasoning (RAG + LLM) -> Docto
 5. Phase 5: Build doctor-facing dashboard for summaries and review
 6. Phase 6: Add evaluation harness for extraction accuracy and summary quality
 
+## Task Tracking
+
+Work is broken into phase-tagged user stories tracked as GitHub Issues, not in this file. To see what's open:
+
+    gh issue list --repo faheemkhaskheli9/clinical-ai-assistant --state open --label type:user-story
+
+Implement Phase 1 issues first (later phases depend on it). When you start one, add label `status:in-progress`. When you finish, close it referencing the commit (e.g. `git commit -m "... Closes #4"`) and push.
+
 ## 6. Repository Structure
 
 ```text
