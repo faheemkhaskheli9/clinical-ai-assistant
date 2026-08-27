@@ -1,0 +1,33 @@
+# Schema version registry — read once at startup by src/schemas/versioning.py.
+#
+# Every top-level persisted record (a patient ConversationSession and a
+# StructuredExtraction) is stamped with `schema_version`. The value new records
+# get, and the set of versions a consumer in this codebase can read, live here
+# rather than as a constant next to each model, so evolving a schema is a config
+# edit plus a migration note (docs/schema-versioning.md) — not a source change
+# in several files.
+#
+# Bumping a version:
+#   * additive / backward-compatible change (new optional field) -> keep the
+#     version; old records still validate under model defaults.
+#   * breaking change (field removed/renamed/retyped, semantics changed) ->
+#     add the new version to `current`, keep the old one in `supported` until a
+#     migration has back-filled or retired every stored record, then drop it.
+
+conversation:
+  current: "1.0"
+  supported:
+    - "1.0"
+
+extraction:
+  current: "1.0"
+  supported:
+    - "1.0"
+
+# How a consumer should treat a record whose schema_version is not in the
+# matching `supported` list:
+#   error -> raise IncompatibleSchemaVersionError (default; a wrong result from
+#            reading an unknown shape is worse than a loud failure)
+#   warn  -> emit a warning and let the caller proceed best-effort
+compatibility:
+  on_unknown_version: "error"

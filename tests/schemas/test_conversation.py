@@ -4,8 +4,16 @@ import pytest
 from pydantic import ValidationError
 
 from src.schemas.conversation import ConversationSession, ConversationTurn, TurnRole
+from src.schemas.versioning import current_version, reload_registry
 
 NOW = datetime(2026, 8, 20, 12, 0, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _clean_registry_cache():
+    reload_registry()
+    yield
+    reload_registry()
 
 
 def _valid_session_payload() -> dict:
@@ -87,3 +95,15 @@ def test_turns_must_be_chronological():
 def test_conversation_turn_requires_non_empty_content():
     with pytest.raises(ValidationError):
         ConversationTurn(role="patient", content="")
+
+
+def test_schema_version_defaults_from_config():
+    session = ConversationSession(patient_id="patient-pseudo-0003")
+    assert session.schema_version == current_version("conversation")
+
+
+def test_explicit_unsupported_schema_version_is_rejected():
+    payload = _valid_session_payload()
+    payload["schema_version"] = "0.0"
+    with pytest.raises(ValidationError):
+        ConversationSession.model_validate(payload)

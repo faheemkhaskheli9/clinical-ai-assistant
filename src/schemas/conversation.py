@@ -5,22 +5,27 @@ the extraction pipeline, and storage. Any component that reads or writes a
 conversation session should import these models rather than redefining the
 shape ad hoc.
 
-Schema versioning: bump ``SCHEMA_VERSION`` (and add a new ``Literal`` value to
-``ConversationSession.schema_version``) whenever a breaking change is made to
-the session or turn shape, so older persisted records can still be
-distinguished from newer ones.
+Schema versioning is config-driven: :class:`ConversationSession` inherits
+``schema_version`` from :class:`src.schemas.versioning.VersionedRecord`, whose
+default value comes from ``configs/schema.yaml`` (key ``conversation``) read
+at startup. To evolve the shape, edit that file and add a migration note to
+``docs/schema-versioning.md`` — do not hardcode a version constant here.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION: Literal["1.0"] = "1.0"
+from src.schemas.pii import reject_email_shaped_identifier
+from src.schemas.versioning import VersionedRecord, current_version
+
+# Convenience alias for "the conversation version this process started with",
+# resolved from configs/schema.yaml at import time (not a hardcoded literal).
+SCHEMA_VERSION: str = current_version("conversation")
 
 
 class TurnRole(str, Enum):
@@ -45,15 +50,18 @@ class ConversationTurn(BaseModel):
     )
 
 
-class ConversationSession(BaseModel):
-    """A full patient intake conversation: session metadata plus its turns."""
+class ConversationSession(VersionedRecord):
+    """A full patient intake conversation: session metadata plus its turns.
+
+    ``schema_version`` is inherited from :class:`VersionedRecord`; unset on
+    creation it is stamped from ``configs/schema.yaml``, and an explicit value
+    that the config does not list as supported is rejected at parse time.
+    """
+
+    SCHEMA_NAME = "conversation"
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["1.0"] = Field(
-        default=SCHEMA_VERSION,
-        description="Version of this schema the record was written with",
-    )
     session_id: UUID = Field(default_factory=uuid4, description="Unique id for this session")
     patient_id: str = Field(
         ...,
@@ -77,13 +85,10 @@ class ConversationSession(BaseModel):
     def patient_id_must_be_pseudonymous(cls, value: str) -> str:
         """Reject the most obvious accidental-PII shapes (defense in depth only).
 
-        This is not a PII detector — real de-identification happens upstream,
-        before an id ever reaches this schema. It just catches the easy
-        mistake of passing a raw email address as the patient identifier.
+        Real de-identification happens upstream, before an id reaches this
+        schema; this just catches passing a raw email as the identifier.
         """
-        if "@" in value:
-            raise ValueError("patient_id must be a pseudonymous identifier, not an email address")
-        return value
+        return reject_email_shaped_identifier(value)
 
     @field_validator("turns")
     @classmethod

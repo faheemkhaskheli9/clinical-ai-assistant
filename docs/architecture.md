@@ -26,6 +26,19 @@ Patient Chat -> Structured Extraction -> Clinical Reasoning (RAG + LLM) -> Docto
 - Prefer configuration-driven pipelines (YAML/JSON in `configs/`) over hardcoded
   parameters so experiments are reproducible.
 
+## Schema versioning (`src/schemas/`, Phase 1)
+
+Every top-level persisted record — `ConversationSession` and
+`StructuredExtraction` — carries a `schema_version`. The current value and the
+set of readable versions come from `configs/schema.yaml`, read once at startup
+by `src/schemas/versioning.py`; nothing hardcodes a version next to a model.
+Full rules for stamping, consuming older/unknown versions, and changing a
+schema are in [`schema-versioning.md`](schema-versioning.md).
+
+Informed by the knowledge-base "Memory tier selection" pattern: keep state
+contracts explicit and config-driven, and treat the stored source record —
+not a re-stamped or distilled copy — as the record of truth.
+
 ## Data ingestion (`src/rag/`, Phase 4)
 
 `scripts/ingest.py` fetches the RAG reference corpus from three public
