@@ -7,6 +7,12 @@ readme = "README.md"
 license = { text = "MIT" }
 dependencies = [
     "pydantic>=2.6,<3",
+    "requests>=2.32,<3",
+    # Used directly in src/rag/fetchers/base.py (urllib3.util.retry.Retry).
+    # Floor is 1.26: `Retry(allowed_methods=...)` replaced `method_whitelist`
+    # there, and requests' own range would otherwise permit an older urllib3.
+    "urllib3>=1.26,<3",
+    "PyYAML>=6.0,<7",
 ]
 
 [project.optional-dependencies]

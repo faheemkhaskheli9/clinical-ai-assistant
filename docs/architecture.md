@@ -25,3 +25,14 @@ Patient Chat -> Structured Extraction -> Clinical Reasoning (RAG + LLM) -> Docto
   and similar projects in this portfolio for the general pattern).
 - Prefer configuration-driven pipelines (YAML/JSON in `configs/`) over hardcoded
   parameters so experiments are reproducible.
+
+## Data ingestion (`src/rag/`, Phase 4)
+
+`scripts/ingest.py` fetches the RAG reference corpus from three public
+sources (MedlinePlus, openFDA, MedQuAD — see README §8) and normalizes every
+record into one common `SourceDocument` schema (`src/rag/schema.py`) before
+writing it to `data/processed/<source>.jsonl`. Raw responses are cached
+under `data/raw/` so re-running ingestion is cheap. Chunking, embedding, and
+vector-store loading (turning these JSONL files into a queryable retriever)
+are not built yet — that's the next slice of Phase 4, feeding into issue #13
+(grounded recommendations with citations).

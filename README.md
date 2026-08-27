@@ -93,15 +93,29 @@ cp .env.example .env              # fill in API keys / config
 
 ## 8. Dataset
 
-Document which public dataset(s) or synthetic data generators are used here.
-No proprietary, employer-owned, or client-identifiable data is used in this project.
+The RAG reference corpus (Phase 4) is pulled live from three public/government
+sources via `scripts/ingest.py` — nothing is committed to the repo, only
+fetched and cached locally under `data/` (gitignored):
+
+| Source | Content | License |
+|---|---|---|
+| [MedlinePlus](https://medlineplus.gov/) Health Topics (wsearch API) | Disease/condition overviews | Public domain (US NLM) |
+| [openFDA](https://open.fda.gov/) Drug Label API | Indications, dosage, contraindications, warnings, interactions | Public domain (US FDA) |
+| [MedQuAD](https://github.com/abachaa/MedQuAD) | ~47k medical Q&A pairs (excl. 3 copyright-stripped MedlinePlus subsets) | CC BY 4.0 |
+
+Run `python scripts/ingest.py` (see §9) to (re)populate `data/processed/*.jsonl`.
+Per-source options (seed terms, record limits, file caps) live in
+`configs/ingest.yaml`. No proprietary, employer-owned, or client-identifiable
+data is used in this project.
 
 ## 9. Training / Execution
 
-Document the commands used to run training, ingestion, or the main pipeline, e.g.:
+Ingest the medical reference corpus (fetches online, caches locally):
 
 ```bash
-python -m src.main --config configs/default.yaml
+python scripts/ingest.py                              # all sources, default config
+python scripts/ingest.py --sources medlineplus,openfda # a subset
+python scripts/ingest.py --config configs/ingest.yaml  # tune limits/seed terms
 ```
 
 ## 10. Evaluation
