@@ -29,9 +29,17 @@ Config-file resolution order:
 3. `configs/schema.yaml` at the repo root (default)
 
 A missing file at the **default** location falls back to
-`versioning.BUILTIN_DEFAULTS` (a fresh checkout still runs). A path given
-**explicitly** via (1) or (2) that doesn't exist is a hard error — you asked
-for specific settings, so a silent fall-through to defaults would be a lie.
+`versioning.BUILTIN_DEFAULTS` (a fresh checkout still runs; a test asserts the
+two never drift). A path given **explicitly** via (1) or (2) that doesn't
+exist is a hard error — you asked for specific settings, so a silent
+fall-through to defaults would be a lie. `$CLINICAL_AI_SCHEMA_CONFIG` is
+re-read on every `load_registry()` call, so setting it after startup takes
+effect; only edits to an already-resolved file need `reload_registry()`.
+
+Every top-level key except `compatibility` is read as a named schema block, so
+**adding a persisted record type is a config edit only** — add another block
+with the same `current` / `supported` shape and point the new model's
+`SCHEMA_NAME` at its key.
 
 ## How records get stamped
 

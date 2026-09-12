@@ -13,6 +13,11 @@
 #   * breaking change (field removed/renamed/retyped, semantics changed) ->
 #     add the new version to `current`, keep the old one in `supported` until a
 #     migration has back-filled or retired every stored record, then drop it.
+#
+# Adding a new persisted record type is a config edit only: add another
+# top-level block here (same `current` / `supported` shape) and set
+# SCHEMA_NAME to its key on the model. Every top-level key except
+# `compatibility` is read as a schema block.
 
 conversation:
   current: "1.0"
@@ -28,6 +33,7 @@ extraction:
 # matching `supported` list:
 #   error -> raise IncompatibleSchemaVersionError (default; a wrong result from
 #            reading an unknown shape is worse than a loud failure)
-#   warn  -> emit a warning and let the caller proceed best-effort
+#   warn  -> log one warning per record (via the logging module, so an operator
+#            can count them) and let the caller proceed best-effort
 compatibility:
   on_unknown_version: "error"

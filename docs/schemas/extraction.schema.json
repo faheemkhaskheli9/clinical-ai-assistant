@@ -1,0 +1,265 @@
+{
+  "$defs": {
+    "Symptom": {
+      "additionalProperties": false,
+      "description": "One reported symptom.\n\n``name`` is required; ``onset`` and ``severity`` are optional because a\npatient often mentions a symptom without either. A bare string is accepted\nand coerced to ``{\"name\": <string>}`` so the pre-structured\n``[\"cough\", \"fever\"]`` payload shape still validates unchanged.",
+      "properties": {
+        "name": {
+          "description": "Symptom in the patient's words, lightly normalized",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "onset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "When/how it began, free text (e.g. '3 days ago', 'gradual over weeks')",
+          "title": "Onset"
+        },
+        "severity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SymptomSeverity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Controlled severity; None when the patient did not say"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Symptom",
+      "type": "object"
+    },
+    "SymptomSeverity": {
+      "description": "Controlled severity for a reported symptom. Absent => the patient did not say.",
+      "enum": [
+        "mild",
+        "moderate",
+        "severe"
+      ],
+      "title": "SymptomSeverity",
+      "type": "string"
+    },
+    "UrgencyLevel": {
+      "description": "Overall triage urgency for the encounter.\n\nMaps to Phase 5 doctor-dashboard behaviour: ``ROUTINE`` sits in the normal\nqueue, ``URGENT`` is surfaced above routine items, ``EMERGENT`` triggers a\nprominent flag. Kept deliberately small; widen only via a schema bump.",
+      "enum": [
+        "routine",
+        "urgent",
+        "emergent"
+      ],
+      "title": "UrgencyLevel",
+      "type": "string"
+    },
+    "Vitals": {
+      "additionalProperties": false,
+      "description": "Vital signs, all optional \u2014 a conversation rarely mentions every one.\n\nEvery field carries a physiologically-plausible range, not just the ones\nwhere a negative is obviously wrong. The bounds are wide enough that any\nreal reading passes; a value outside them means the extractor mis-parsed\n(e.g. ``temperature_c=-98.6`` from the text \"98.6\", or a decimal point\ndropped). Per the repo robustness rules, rejecting that loudly beats\nstoring a bad vital that then flows into clinical reasoning as fact.",
+      "properties": {
+        "systolic_bp": {
+          "anyOf": [
+            {
+              "maximum": 400,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "mmHg",
+          "title": "Systolic Bp"
+        },
+        "diastolic_bp": {
+          "anyOf": [
+            {
+              "maximum": 300,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "mmHg",
+          "title": "Diastolic Bp"
+        },
+        "heart_rate": {
+          "anyOf": [
+            {
+              "maximum": 500,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "beats per minute",
+          "title": "Heart Rate"
+        },
+        "temperature_c": {
+          "anyOf": [
+            {
+              "maximum": 45.0,
+              "minimum": 20.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "degrees Celsius",
+          "title": "Temperature C"
+        },
+        "respiratory_rate": {
+          "anyOf": [
+            {
+              "maximum": 200,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "breaths per minute",
+          "title": "Respiratory Rate"
+        },
+        "oxygen_saturation": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SpO2, percent",
+          "title": "Oxygen Saturation"
+        }
+      },
+      "title": "Vitals",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A persisted structured-extraction record for one intake conversation.\n\n``schema_version`` is inherited from :class:`VersionedRecord`; unset on\ncreation it is stamped from ``configs/schema.yaml``, and an explicit value\nthe config does not list as supported is rejected at parse time.",
+  "properties": {
+    "schema_version": {
+      "default": "",
+      "description": "Schema version the record was written with (from configs/schema.yaml)",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "chief_complaint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Primary reason for the visit, in the patient's words",
+      "title": "Chief Complaint"
+    },
+    "symptoms": {
+      "description": "Reported symptoms, each with a name and optional onset/severity",
+      "items": {
+        "$ref": "#/$defs/Symptom"
+      },
+      "title": "Symptoms",
+      "type": "array"
+    },
+    "vitals": {
+      "$ref": "#/$defs/Vitals",
+      "description": "Any vitals mentioned"
+    },
+    "medical_history": {
+      "description": "Past conditions, procedures, family history",
+      "items": {
+        "type": "string"
+      },
+      "title": "Medical History",
+      "type": "array"
+    },
+    "medications": {
+      "description": "Current medications",
+      "items": {
+        "type": "string"
+      },
+      "title": "Medications",
+      "type": "array"
+    },
+    "allergies": {
+      "description": "Known allergies",
+      "items": {
+        "type": "string"
+      },
+      "title": "Allergies",
+      "type": "array"
+    },
+    "urgency": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UrgencyLevel"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Overall triage urgency if the conversation supports one; None if unclear"
+    },
+    "extraction_id": {
+      "description": "Unique id for this extraction",
+      "format": "uuid",
+      "title": "Extraction Id",
+      "type": "string"
+    },
+    "session_id": {
+      "description": "ConversationSession this record was extracted from",
+      "format": "uuid",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "patient_id": {
+      "description": "Pseudonymous patient identifier (never a real name, email, or SSN)",
+      "minLength": 1,
+      "title": "Patient Id",
+      "type": "string"
+    },
+    "extracted_at": {
+      "description": "UTC timestamp the extraction was produced",
+      "format": "date-time",
+      "title": "Extracted At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "patient_id"
+  ],
+  "title": "StructuredExtraction",
+  "type": "object"
+}

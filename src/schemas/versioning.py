@@ -4,8 +4,10 @@ Every top-level record this system stores — a patient ``ConversationSession``
 (:mod:`src.schemas.conversation`) and a ``StructuredExtraction``
 (:mod:`src.schemas.extraction`) — carries a ``schema_version`` string. The
 value new records are stamped with, and the set of versions a consumer here
-knows how to read, come from ``configs/schema.yaml`` read once at startup —
-**not** from a constant hardcoded next to each model. Bumping a schema is
+knows how to read, come from ``configs/schema.yaml``, read lazily on first use
+and then memoised — **not** from a constant hardcoded next to each model
+(nothing here reads the config at import time, so a malformed file cannot
+break ``import src.schemas``). Bumping a schema is
 then a config edit plus a migration note (``docs/schema-versioning.md``), and
 older persisted records stay distinguishable from newer ones.
 
@@ -23,8 +25,8 @@ hard error, never a silent fall-through to defaults.
 
 from __future__ import annotations
 
+import logging
 import os
-import warnings
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
@@ -33,12 +35,15 @@ from typing import ClassVar, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+logger = logging.getLogger(__name__)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "schema.yaml"
 ENV_VAR = "CLINICAL_AI_SCHEMA_CONFIG"
 
-# Used only when no config file exists at the default path. Keep in sync with
-# configs/schema.yaml so behaviour doesn't shift when the file is present.
+# Used only when no config file exists at the default path. This mirrors
+# configs/schema.yaml; test_builtin_defaults_match_shipped_config asserts the
+# two stay identical, so a drift fails CI rather than shipping two behaviours.
 BUILTIN_DEFAULTS: dict = {
     "conversation": {"current": "1.0", "supported": ["1.0"]},
     "extraction": {"current": "1.0", "supported": ["1.0"]},
@@ -87,21 +92,49 @@ class CompatibilityPolicy(BaseModel):
 
 
 class SchemaRegistry(BaseModel):
-    """The whole ``configs/schema.yaml`` document, validated."""
+    """The whole ``configs/schema.yaml`` document, validated.
+
+    Every top-level key other than ``compatibility`` is a named schema block
+    (``conversation``, ``extraction``, a future ``soap_note`` …) folded into
+    :attr:`schemas`. Adding a persisted record type is therefore a pure config
+    edit — no new field here and no source change, which is the whole point of
+    keeping versions in a config file.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    conversation: SchemaSpec
-    extraction: SchemaSpec
+    schemas: dict[str, SchemaSpec] = Field(..., min_length=1)
     compatibility: CompatibilityPolicy = Field(default_factory=CompatibilityPolicy)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fold_named_blocks(cls, data: object) -> object:
+        """Fold top-level schema blocks into ``schemas``.
+
+        ``{conversation: {...}, extraction: {...}, compatibility: {...}}``
+        becomes ``{schemas: {conversation: {...}, extraction: {...}},
+        compatibility: {...}}``. An explicit ``schemas:`` mapping (or any
+        non-dict, left for the field validators to reject) passes through
+        untouched.
+        """
+        if not isinstance(data, dict) or "schemas" in data:
+            return data
+        folded: dict = {"schemas": {}}
+        for key, value in data.items():
+            if key == "compatibility":
+                folded[key] = value
+            else:
+                folded["schemas"][key] = value
+        return folded
 
     def spec(self, schema_name: str) -> SchemaSpec:
         """Return the :class:`SchemaSpec` for ``schema_name`` or raise ``KeyError``."""
-        candidate = getattr(self, schema_name, None)
-        if not isinstance(candidate, SchemaSpec):
-            known = [n for n, f in type(self).model_fields.items() if f.annotation is SchemaSpec]
-            raise KeyError(f"unknown schema name {schema_name!r}; known: {known}")
-        return candidate
+        try:
+            return self.schemas[schema_name]
+        except KeyError:
+            raise KeyError(
+                f"unknown schema name {schema_name!r}; known: {sorted(self.schemas)}"
+            ) from None
 
 
 def _read_yaml_mapping(path: Path) -> dict:
@@ -111,20 +144,30 @@ def _read_yaml_mapping(path: Path) -> dict:
     return data
 
 
-@lru_cache(maxsize=None)
-def load_registry(path: str | None = None) -> SchemaRegistry:
-    """Load and validate the schema registry, memoised per distinct ``path``.
+def _resolve_source(path: str | None) -> tuple[str | None, str | None]:
+    """Resolve the config source to a concrete ``(path, label)`` before caching.
 
-    See the module docstring for resolution order and the missing-file rules.
-    Call :func:`reload_registry` to force a re-read (tests, hot config edits).
+    The ``$CLINICAL_AI_SCHEMA_CONFIG`` lookup happens *here*, not inside the
+    memoised function, so every input the result depends on is part of the
+    cache key. If the env var is set (or changed) after the first call, the key
+    changes and the new value is honoured — never silently ignored because an
+    earlier ``path=None`` call cached the default (repo CLAUDE.md rule 7).
     """
-    explicit = path if path is not None else os.environ.get(ENV_VAR)
-    if explicit is not None:
-        source = "path argument" if path is not None else f"${ENV_VAR}"
-        config_path = Path(explicit)
+    if path is not None:
+        return path, "path argument"
+    env = os.environ.get(ENV_VAR)
+    if env is not None:
+        return env, f"${ENV_VAR}"
+    return None, None
+
+
+@lru_cache(maxsize=None)
+def _load_registry_cached(source: str | None, label: str | None) -> SchemaRegistry:
+    if source is not None:
+        config_path = Path(source)
         if not config_path.is_file():
             raise FileNotFoundError(
-                f"schema config {config_path} (from {source}) does not exist"
+                f"schema config {config_path} (from {label}) does not exist"
             )
         return SchemaRegistry.model_validate(_read_yaml_mapping(config_path))
 
@@ -133,9 +176,21 @@ def load_registry(path: str | None = None) -> SchemaRegistry:
     return SchemaRegistry.model_validate(BUILTIN_DEFAULTS)
 
 
+def load_registry(path: str | None = None) -> SchemaRegistry:
+    """Load and validate the schema registry, memoised per resolved source.
+
+    Resolution order (see module docstring): explicit ``path`` →
+    ``$CLINICAL_AI_SCHEMA_CONFIG`` → ``configs/schema.yaml`` → builtin
+    defaults. The env var is read on every call, so setting it later takes
+    effect; only edits to an already-resolved file need :func:`reload_registry`
+    (tests, hot config edits).
+    """
+    return _load_registry_cached(*_resolve_source(path))
+
+
 def reload_registry() -> None:
     """Drop the memoised registry so the next lookup re-reads the config file."""
-    load_registry.cache_clear()
+    _load_registry_cached.cache_clear()
 
 
 def current_version(schema_name: str) -> str:
@@ -174,9 +229,15 @@ def check_version(
     Returns the :class:`CompatibilityStatus`. ``CURRENT`` and
     ``OLDER_SUPPORTED`` pass through. For ``UNKNOWN`` the behaviour follows
     ``compatibility.on_unknown_version`` in the config (``"error"`` raises
-    :class:`IncompatibleSchemaVersionError`, ``"warn"`` emits a warning and
-    returns), unless ``strict`` overrides it: ``strict=True`` always raises,
-    ``strict=False`` always warns.
+    :class:`IncompatibleSchemaVersionError`, ``"warn"`` logs a warning on
+    :data:`logger` and returns), unless ``strict`` overrides it:
+    ``strict=True`` always raises, ``strict=False`` always logs.
+
+    The "warn" path uses the :mod:`logging` module, not :func:`warnings.warn`:
+    the latter is de-duplicated by (message, module, lineno) under the default
+    filter, so bulk-checking many records with the same unknown version would
+    emit only one notice and an operator tallying incompatible rows would
+    undercount. One log record per call keeps the count honest.
     """
     status = classify_version(schema_name, version)
     if status is not CompatibilityStatus.UNKNOWN:
@@ -191,7 +252,7 @@ def check_version(
     )
     if should_raise:
         raise IncompatibleSchemaVersionError(message)
-    warnings.warn(message, stacklevel=2)
+    logger.warning(message)
     return status
 
 

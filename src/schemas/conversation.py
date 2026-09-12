@@ -7,9 +7,10 @@ shape ad hoc.
 
 Schema versioning is config-driven: :class:`ConversationSession` inherits
 ``schema_version`` from :class:`src.schemas.versioning.VersionedRecord`, whose
-default value comes from ``configs/schema.yaml`` (key ``conversation``) read
-at startup. To evolve the shape, edit that file and add a migration note to
-``docs/schema-versioning.md`` — do not hardcode a version constant here.
+default value comes from ``configs/schema.yaml`` (key ``conversation``),
+resolved lazily on first record construction. To evolve the shape, edit that
+file and add a migration note to ``docs/schema-versioning.md`` — do not
+hardcode a version constant here.
 """
 
 from __future__ import annotations
@@ -21,11 +22,14 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.schemas.pii import reject_email_shaped_identifier
-from src.schemas.versioning import VersionedRecord, current_version
+from src.schemas.versioning import VersionedRecord
 
-# Convenience alias for "the conversation version this process started with",
-# resolved from configs/schema.yaml at import time (not a hardcoded literal).
-SCHEMA_VERSION: str = current_version("conversation")
+# Note: this module intentionally exposes no module-level version constant.
+# The version is resolved lazily by VersionedRecord the first time a record is
+# constructed (call src.schemas.versioning.current_version("conversation") if
+# you need it explicitly). An import-time read would make a malformed
+# configs/schema.yaml break `import src.schemas` for code that never touches
+# versioning, and would capture a value that reload_registry() cannot update.
 
 
 class TurnRole(str, Enum):

@@ -56,3 +56,35 @@ def test_extra_fields_are_forbidden():
 def test_oxygen_saturation_is_bounded():
     with pytest.raises(ValidationError):
         StructuredExtraction(**_payload(), vitals={"oxygen_saturation": 150})
+
+
+@pytest.mark.parametrize(
+    "vitals",
+    [
+        {"temperature_c": -98.6},  # sign flipped by a mis-parse of "98.6"
+        {"temperature_c": 0.0},
+        {"temperature_c": 986.0},  # decimal point dropped
+        {"systolic_bp": 100_000},
+        {"heart_rate": 99_999},
+        {"respiratory_rate": 5_000},
+    ],
+)
+def test_out_of_range_vitals_are_rejected(vitals):
+    """Every vital has a plausibility bound, not just the obvious-negative ones."""
+    with pytest.raises(ValidationError):
+        StructuredExtraction(**_payload(), vitals=vitals)
+
+
+def test_plausible_vitals_pass():
+    record = StructuredExtraction(
+        **_payload(),
+        vitals={
+            "systolic_bp": 120,
+            "diastolic_bp": 80,
+            "heart_rate": 72,
+            "temperature_c": 37.0,
+            "respiratory_rate": 16,
+            "oxygen_saturation": 98,
+        },
+    )
+    assert record.vitals.temperature_c == 37.0

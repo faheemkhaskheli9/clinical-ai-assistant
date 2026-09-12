@@ -3,7 +3,15 @@ from src.schemas.conversation import (
     ConversationTurn,
     TurnRole,
 )
-from src.schemas.extraction import StructuredExtraction, Vitals
+from src.schemas.extraction import (
+    ExtractionPayload,
+    StructuredExtraction,
+    Symptom,
+    SymptomSeverity,
+    UrgencyLevel,
+    Vitals,
+    extraction_function_tool,
+)
 from src.schemas.versioning import (
     CompatibilityStatus,
     IncompatibleSchemaVersionError,
@@ -18,8 +26,13 @@ __all__ = [
     "ConversationSession",
     "ConversationTurn",
     "TurnRole",
+    "ExtractionPayload",
     "StructuredExtraction",
+    "Symptom",
+    "SymptomSeverity",
+    "UrgencyLevel",
     "Vitals",
+    "extraction_function_tool",
     "VersionedRecord",
     "CompatibilityStatus",
     "IncompatibleSchemaVersionError",

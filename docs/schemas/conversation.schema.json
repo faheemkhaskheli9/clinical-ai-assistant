@@ -46,12 +46,11 @@
     }
   },
   "additionalProperties": false,
-  "description": "A full patient intake conversation: session metadata plus its turns.",
+  "description": "A full patient intake conversation: session metadata plus its turns.\n\n``schema_version`` is inherited from :class:`VersionedRecord`; unset on\ncreation it is stamped from ``configs/schema.yaml``, and an explicit value\nthat the config does not list as supported is rejected at parse time.",
   "properties": {
     "schema_version": {
-      "const": "1.0",
-      "default": "1.0",
-      "description": "Version of this schema the record was written with",
+      "default": "",
+      "description": "Schema version the record was written with (from configs/schema.yaml)",
       "title": "Schema Version",
       "type": "string"
     },

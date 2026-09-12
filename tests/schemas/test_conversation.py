@@ -107,3 +107,16 @@ def test_explicit_unsupported_schema_version_is_rejected():
     payload["schema_version"] = "0.0"
     with pytest.raises(ValidationError):
         ConversationSession.model_validate(payload)
+
+
+def test_conversation_module_has_no_eager_version_constant():
+    """Importing the module must not read configs/schema.yaml at import time.
+
+    A module-level ``SCHEMA_VERSION`` computed at import turned a malformed
+    config into an unimportable ``src.schemas`` package (for code that never
+    touches versioning) and captured a value ``reload_registry()`` could not
+    update. The version is resolved lazily by ``VersionedRecord`` instead.
+    """
+    import src.schemas.conversation as module
+
+    assert not hasattr(module, "SCHEMA_VERSION")
